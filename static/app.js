@@ -86,7 +86,7 @@
   }
 
   function collapsePlatform(p) {
-    return p.replace(/ \((main|spam)\)$/, "");
+    return p.replace(/ \((main|spam|personal)\)$/, "");
   }
 
   const NAME_COLORS = { Vedh: "--name-blue", Tanvi: "--name-red" };
@@ -164,7 +164,8 @@
 
   // Instagram is one platform in the raw data, but two functionally distinct
   // inboxes (main account vs. spam/throwaway accounts) distinguishable only via
-  // original_account_name. Split it into its own filterable pseudo-platform,
+  // original_account_name. Hangouts similarly splits into the group chat vs.
+  // the personal 1:1 export. Split each into its own filterable pseudo-platform,
   // mirroring what the old server-side PLATFORM_EXPR did.
   function buildRows(parsed) {
     if (!parsed.length) return [];
@@ -181,6 +182,8 @@
       if (platform === "instagram") {
         if (originalAccountName.includes("(main)")) platformSplit = "instagram (main)";
         else if (originalAccountName.includes("(spam)")) platformSplit = "instagram (spam)";
+      } else if (platform === "hangouts") {
+        if (originalAccountName.includes("(personal)")) platformSplit = "hangouts (personal)";
       }
       rows.push({
         name: r[idx.name] || "",
