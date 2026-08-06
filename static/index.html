@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Message Archive</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="upload-overlay" id="uploadOverlay">
+    <div class="upload-card">
+      <h1>Message Archive</h1>
+      <p>Load <code>messages.csv</code> to get started. It's parsed right here in your browser and cached on this device &mdash; the file itself is never uploaded anywhere.</p>
+      <label class="upload-dropzone" id="dropzone" for="fileInput">
+        <span id="dropzoneText">Click to choose messages.csv, or drag it here</span>
+        <input type="file" id="fileInput" accept=".csv,text/csv" hidden />
+      </label>
+      <div class="upload-status" id="uploadStatus"></div>
+    </div>
+  </div>
+
+  <div class="app hidden" id="app">
+
+    <header class="topbar">
+      <h1>Message Archive</h1>
+      <div class="topbar-meta-group">
+        <div class="topbar-meta" id="totalCount">Loading…</div>
+        <button id="changeFileBtn" class="btn-ghost btn-small">Load a different file</button>
+      </div>
+    </header>
+
+    <section class="charts" id="charts">
+      <div class="chart-card" id="timelineCard">
+        <div class="chart-head">
+          <h2>Messages over time</h2>
+          <div class="legend" id="timelineLegend"></div>
+          <div class="chart-controls">
+            <div class="segmented" id="timelineGranularity">
+              <button type="button" data-value="month" class="active">Month</button>
+              <button type="button" data-value="year">Year</button>
+            </div>
+            <div class="zoom-controls" id="timelineZoomControls">
+              <button type="button" id="zoomOutBtn" title="Zoom out">&minus;</button>
+              <span id="zoomLevelLabel">100%</span>
+              <button type="button" id="zoomInBtn" title="Zoom in">+</button>
+              <button type="button" id="zoomResetBtn" title="Reset zoom">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-body chart-body-scroll" id="timelineChart"></div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card chart-card-small" id="totalsCard">
+          <div class="chart-head">
+            <h2>Total by platform</h2>
+          </div>
+          <div class="chart-body" id="totalsChart"></div>
+        </div>
+
+        <div class="chart-card chart-card-small" id="hourCard">
+          <div class="chart-head">
+            <h2>Activity by hour of day</h2>
+          </div>
+          <div class="chart-body" id="hourChart"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="summaryPanel">
+      <div class="section-label">AI Recaps</div>
+      <h2>Daily Summaries</h2>
+      <p class="summary-hint">Pick a day and AI will read through it and split it back out into the different conversations you had.</p>
+
+      <label class="summary-field" style="max-width: 340px;">
+        Anthropic API key
+        <input type="password" id="summaryApiKey" placeholder="sk-ant-..." autocomplete="off" />
+      </label>
+
+      <div id="summaryKeyNote" class="summary-note" style="margin-top: 0.75rem;">Paste your Anthropic API key to unlock day summaries. It's only used in your browser, never stored.</div>
+
+      <div id="summaryControls" class="hidden" style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem;">
+        <div>
+          <div class="summary-note" style="margin-bottom: 0.5rem;">Busiest days. Pick one, or set a date below:</div>
+          <div id="summaryBusiestDays" class="filter-group"></div>
+        </div>
+
+        <label class="summary-field" style="max-width: 220px;">
+          Or pick a specific date
+          <input type="date" id="summaryDate" />
+        </label>
+
+        <label class="summary-field" style="max-width: 340px;">
+          Model
+          <select id="summaryModel"></select>
+        </label>
+
+        <div id="summaryDayCount" class="summary-note"></div>
+
+        <button id="summaryGenerateBtn" class="btn" style="align-self: flex-start;" disabled>Summarize this day</button>
+      </div>
+
+      <div id="summaryError" class="summary-error hidden" style="margin-top: 1rem;"></div>
+
+      <div id="summaryResult" class="hidden" style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+        <div id="summaryCards" class="summary-cards"></div>
+        <div id="summaryUsage" class="summary-usage"></div>
+        <button id="summaryDownloadBtn" class="btn btn-ghost" style="align-self: flex-start;">💾 Download</button>
+      </div>
+    </section>
+
+    <section class="filters" id="filters">
+      <input type="search" id="searchInput" placeholder="Search message content…" autocomplete="off" />
+
+      <div class="filter-group" id="platformFilter"></div>
+
+      <div class="filter-group" id="nameFilter"></div>
+
+      <div class="filter-group dates">
+        <input type="text" id="dateQuick" placeholder="e.g. June 2026" autocomplete="off" title="Type a month/year (e.g. &quot;June 2026&quot;) or a year (e.g. &quot;2026&quot;) to filter to that range" />
+        <label>From <input type="date" id="dateFrom" /></label>
+        <label>To <input type="date" id="dateTo" /></label>
+      </div>
+
+      <button id="sortToggle" class="btn-ghost">Oldest first <span id="sortToggleArrow">&uarr;</span></button>
+      <button id="clearFilters" class="btn-ghost">Clear filters</button>
+      <div class="result-count" id="resultCount"></div>
+    </section>
+
+    <section class="message-list-wrap">
+      <div id="loadEarlier" class="load-earlier hidden">Load earlier messages</div>
+      <table class="message-table">
+        <thead>
+          <tr>
+            <th class="col-date sortable" id="sortDateHeader">Date <span class="sort-arrow" id="sortArrow">&uarr;</span></th>
+            <th class="col-platform">Platform</th>
+            <th class="col-name">Sender</th>
+            <th class="col-content">Message</th>
+          </tr>
+        </thead>
+        <tbody id="messageBody"></tbody>
+      </table>
+      <div id="sentinel" class="sentinel"></div>
+      <div id="listStatus" class="list-status"></div>
+    </section>
+
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

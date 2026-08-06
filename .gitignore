@@ -1,0 +1,11 @@
+.DS_Store
+server.log
+
+# Raw message data and processing pipeline — never commit
+Messages/
+messages.csv
+messages.db
+messages.db-shm
+messages.db-wal
+build_db.py
+combine_messages.py
