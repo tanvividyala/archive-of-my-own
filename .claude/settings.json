@@ -6,7 +6,11 @@
       "Bash(which brew; brew list gh 2>&1 | head -5; ls /opt/homebrew/bin/gh 2>&1; ls /usr/local/bin/gh 2>&1)",
       "Read(//opt/homebrew/bin/**)",
       "Bash(git commit --amend -m ' *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 combine_messages.py)",
+      "Bash(node -c static/app.js)",
+      "Bash(git commit -m 'Split hangouts \\(personal\\) into its own filterable pseudo-platform *)"
     ]
   }
 }
