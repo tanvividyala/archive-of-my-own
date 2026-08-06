@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "Bash(gh auth *)",
+      "Bash(which brew; brew list gh 2>&1 | head -5; ls /opt/homebrew/bin/gh 2>&1; ls /usr/local/bin/gh 2>&1)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(git commit --amend -m ' *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
