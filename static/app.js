@@ -1014,12 +1014,45 @@
   const summaryState = {
     apiKey: "",
     model: SUMMARY_MODELS[0].value,
-    selectedDateKey: null,
+    dateFrom: null,
+    dateTo: null,
     dailyCounts: [],
-    dayMessages: [],
+    rangeMessages: [],
     loading: false,
     result: null,
   };
+
+  // Mirrors the main filter's dateFrom/dateTo range logic (state.dateFrom /
+  // state.dateTo above) so picking a range here behaves the same way.
+  function getSummaryRangeMessages() {
+    const dateFrom = summaryState.dateFrom || "";
+    const dateTo = summaryState.dateTo ? summaryState.dateTo + " 23:59:59" : "";
+    if (!dateFrom && !dateTo) return [];
+    return state.allRows.filter((r) => {
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo && r.date > dateTo) return false;
+      return true;
+    });
+  }
+
+  function formatRangeLabel(dateFrom, dateTo) {
+    if (dateFrom && dateTo) {
+      return dateFrom === dateTo
+        ? formatFullDateLabel(dateFrom)
+        : `${formatFullDateLabel(dateFrom)} to ${formatFullDateLabel(dateTo)}`;
+    }
+    if (dateFrom) return `${formatFullDateLabel(dateFrom)} onward`;
+    if (dateTo) return `through ${formatFullDateLabel(dateTo)}`;
+    return "";
+  }
+
+  function summaryRangeFileKey() {
+    const { dateFrom, dateTo } = summaryState;
+    if (dateFrom && dateTo) return dateFrom === dateTo ? dateFrom : `${dateFrom}_to_${dateTo}`;
+    if (dateFrom) return `${dateFrom}_onward`;
+    if (dateTo) return `through_${dateTo}`;
+    return "range";
+  }
 
   function computeDailyCounts(rows) {
     const counts = new Map();
@@ -1068,10 +1101,10 @@
     return [];
   }
 
-  async function summarizeDay({ apiKey, model, participants, dateLabel, conversationText }) {
-    const system = `You're analyzing a day's conversation between ${participants.join(
+  async function summarizeRange({ apiKey, model, participants, dateLabel, conversationText }) {
+    const system = `You're analyzing a conversation between ${participants.join(
       " and "
-    )} on ${dateLabel}. Break the conversation into the distinct topics or threads that came up and summarize each one separately. Be specific, capture the vibe, and keep it natural, like you're reminding a friend what they talked about. Write plainly: no em dashes, no exclamation points, and no stock AI phrasing like "delve into" or "it's worth noting."
+    )} covering ${dateLabel}. Break the conversation into the distinct topics or threads that came up and summarize each one separately. Be specific, capture the vibe, and keep it natural, like you're reminding a friend what they talked about. Write plainly: no em dashes, no exclamation points, and no stock AI phrasing like "delve into" or "it's worth noting."
 
 Respond with ONLY a JSON array (no prose before or after, no markdown code fences) in exactly this shape:
 [{"topic": "short 2-6 word title", "summary": "2-4 sentence summary of that thread"}]
@@ -1121,29 +1154,38 @@ If the whole day is really just one topic, return a single-element array.`;
       const [y, m, day] = d.dateKey.split("-").map(Number);
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "pill-toggle" + (summaryState.selectedDateKey === d.dateKey ? " active" : "");
+      const isActive = summaryState.dateFrom === d.dateKey && summaryState.dateTo === d.dateKey;
+      btn.className = "pill-toggle" + (isActive ? " active" : "");
       btn.textContent = `${MONTH_NAMES[m - 1]} ${day}, ${y} · ${d.count}`;
       btn.addEventListener("click", () => {
-        summaryState.selectedDateKey = d.dateKey;
-        document.getElementById("summaryDate").value = d.dateKey;
+        summaryState.dateFrom = d.dateKey;
+        summaryState.dateTo = d.dateKey;
+        document.getElementById("summaryDateFrom").value = d.dateKey;
+        document.getElementById("summaryDateTo").value = d.dateKey;
         renderSummaryBusiestDays();
-        updateSummaryDayCount();
+        updateSummaryRangeCount();
       });
       container.appendChild(btn);
     });
   }
 
-  function updateSummaryDayCount() {
-    const dateKey = summaryState.selectedDateKey;
+  function updateSummaryRangeCount() {
+    const { dateFrom, dateTo } = summaryState;
     const countEl = document.getElementById("summaryDayCount");
     const btn = document.getElementById("summaryGenerateBtn");
-    if (!dateKey) {
+    const isSingleDay = dateFrom && dateTo && dateFrom === dateTo;
+    btn.textContent = summaryState.loading
+      ? "Reading through your messages..."
+      : isSingleDay
+      ? "Summarize this day"
+      : "Summarize this range";
+    if (!dateFrom && !dateTo) {
       countEl.textContent = "";
       btn.disabled = true;
       return;
     }
-    const count = state.allRows.filter((r) => r.date.slice(0, 10) === dateKey).length;
-    countEl.textContent = count > 0 ? `${fmtNum(count)} messages on this day` : "No messages on this day";
+    const count = getSummaryRangeMessages().length;
+    countEl.textContent = count > 0 ? `${fmtNum(count)} messages in this range` : "No messages in this range";
     btn.disabled = count === 0 || summaryState.loading;
   }
 
@@ -1164,11 +1206,9 @@ If the whole day is really just one topic, return a single-element array.`;
   }
 
   async function handleSummaryGenerate() {
-    const dateKey = summaryState.selectedDateKey;
-    if (!dateKey) return;
-    const dayMessages = state.allRows.filter((r) => r.date.slice(0, 10) === dateKey);
-    if (!dayMessages.length) return;
-    summaryState.dayMessages = dayMessages;
+    const rangeMessages = getSummaryRangeMessages();
+    if (!rangeMessages.length) return;
+    summaryState.rangeMessages = rangeMessages;
     summaryState.loading = true;
     summaryState.result = null;
 
@@ -1178,13 +1218,13 @@ If the whole day is really just one topic, return a single-element array.`;
     document.getElementById("summaryError").classList.add("hidden");
     document.getElementById("summaryResult").classList.add("hidden");
 
-    const conversationText = dayMessages
-      .map((m) => `[${m.date.slice(11, 16)}] ${m.name}: ${m.message_content}`)
+    const conversationText = rangeMessages
+      .map((m) => `[${m.date.slice(0, 16)}] ${m.name}: ${m.message_content}`)
       .join("\n");
-    const dateLabel = formatFullDateLabel(dateKey);
+    const dateLabel = formatRangeLabel(summaryState.dateFrom, summaryState.dateTo);
 
     try {
-      const result = await summarizeDay({
+      const result = await summarizeRange({
         apiKey: summaryState.apiKey,
         model: summaryState.model,
         participants: state.names,
@@ -1199,23 +1239,23 @@ If the whole day is really just one topic, return a single-element array.`;
       errEl.classList.remove("hidden");
     } finally {
       summaryState.loading = false;
-      btn.textContent = "Summarize this day";
-      updateSummaryDayCount();
+      updateSummaryRangeCount();
     }
   }
 
   function handleSummaryDownload() {
     const result = summaryState.result;
-    const dateKey = summaryState.selectedDateKey;
-    if (!result || !dateKey) return;
+    const { dateFrom, dateTo } = summaryState;
+    if (!result || (!dateFrom && !dateTo)) return;
     const cards = result.topics.length > 0 ? result.topics : [{ topic: "Summary", summary: result.raw }];
     const body = cards.map((c) => `${c.topic}\n${"-".repeat(c.topic.length)}\n${c.summary}`).join("\n\n");
-    const text = `Conversation Summary\nDate: ${dateKey}\nParticipants: ${state.names.join(" and ")}\nMessages: ${summaryState.dayMessages.length}\nModel: ${summaryState.model}\n\n---\n\n${body}\n`;
+    const dateLabel = formatRangeLabel(dateFrom, dateTo);
+    const text = `Conversation Summary\nDate: ${dateLabel}\nParticipants: ${state.names.join(" and ")}\nMessages: ${summaryState.rangeMessages.length}\nModel: ${summaryState.model}\n\n---\n\n${body}\n`;
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `summary_${dateKey}.txt`;
+    a.download = `summary_${summaryRangeFileKey()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1245,10 +1285,16 @@ If the whole day is really just one topic, return a single-element array.`;
       document.getElementById("summaryKeyNote").classList.toggle("hidden", hasKey);
     });
 
-    document.getElementById("summaryDate").addEventListener("change", (e) => {
-      summaryState.selectedDateKey = e.target.value || null;
+    document.getElementById("summaryDateFrom").addEventListener("change", (e) => {
+      summaryState.dateFrom = e.target.value || null;
       renderSummaryBusiestDays();
-      updateSummaryDayCount();
+      updateSummaryRangeCount();
+    });
+
+    document.getElementById("summaryDateTo").addEventListener("change", (e) => {
+      summaryState.dateTo = e.target.value || null;
+      renderSummaryBusiestDays();
+      updateSummaryRangeCount();
     });
 
     document.getElementById("summaryGenerateBtn").addEventListener("click", handleSummaryGenerate);

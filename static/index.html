@@ -71,7 +71,7 @@
     <section class="card" id="summaryPanel">
       <div class="section-label">AI Recaps</div>
       <h2>Daily Summaries</h2>
-      <p class="summary-hint">Pick a day and AI will read through it and split it back out into the different conversations you had.</p>
+      <p class="summary-hint">Pick a day or a date range and AI will read through it and split it back out into the different conversations you had.</p>
 
       <label class="summary-field" style="max-width: 340px;">
         Anthropic API key
@@ -86,10 +86,13 @@
           <div id="summaryBusiestDays" class="filter-group"></div>
         </div>
 
-        <label class="summary-field" style="max-width: 220px;">
-          Or pick a specific date
-          <input type="date" id="summaryDate" />
-        </label>
+        <div class="summary-field" style="max-width: 340px;">
+          Or pick a date range
+          <div class="dates">
+            <label>From <input type="date" id="summaryDateFrom" /></label>
+            <label>To <input type="date" id="summaryDateTo" /></label>
+          </div>
+        </div>
 
         <label class="summary-field" style="max-width: 340px;">
           Model
